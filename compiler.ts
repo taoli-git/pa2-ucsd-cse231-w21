@@ -1,57 +1,89 @@
-import { Stmt, Expr } from "./ast";
-import { parse } from "./parser";
+import { statSync } from 'fs';
+import wabt from 'wabt';
+import {Stmt, Expr} from './ast';
+import {parseProgram, traverseExpr} from './parser';
 
-// https://learnxinyminutes.com/docs/wasm/
+export async function run(watSource : string) : Promise<number> {
+  const wabtApi = await wabt();
 
-type LocalEnv = Map<string, boolean>;
+  // Next three lines are wat2wasm
+  const parsed = wabtApi.parseWat("example", watSource);
+  const binary = parsed.toBinary({});
+  const wasmModule = await WebAssembly.instantiate(binary.buffer, {});
 
-type CompileResult = {
-  wasmSource: string,
-};
-
-export function compile(source: string) : CompileResult {
-  const ast = parse(source);
-  const definedVars = new Set();
-  ast.forEach(s => {
-    switch(s.tag) {
-      case "define":
-        definedVars.add(s.name);
-        break;
-    }
-  }); 
-  const scratchVar : string = `(local $$last i32)`;
-  const localDefines = [scratchVar];
-  definedVars.forEach(v => {
-    localDefines.push(`(local $${v} i32)`);
-  })
-  
-  const commandGroups = ast.map((stmt) => codeGen(stmt));
-  const commands = localDefines.concat([].concat.apply([], commandGroups));
-  console.log("Generated: ", commands.join("\n"));
-  return {
-    wasmSource: commands.join("\n"),
-  };
+  // This next line is wasm-interp
+  return (wasmModule.instance.exports as any)._start();
 }
 
-function codeGen(stmt: Stmt) : Array<string> {
+(window as any)["runWat"] = run;
+
+export function codeGenExpr(expr : Expr) : Array<string> {
+  switch(expr.tag) {
+    case "id": return [`(local.get $${expr.name})`];
+    case "number": return [`(i32.const ${expr.value})`];
+    case "call":
+      var valStmts = codeGenExpr(expr.arguments[0]);
+      valStmts.push(`(call $${expr.name})`);
+      return valStmts;
+  }
+}
+export function codeGenStmt(stmt : Stmt) : Array<string> {
   switch(stmt.tag) {
     case "define":
+      var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
+      var stmts = stmt.body.map(codeGenStmt).flat();
+      var stmtsBody = stmts.join("\n");
+      return [`(func $${stmt.name} ${params} (result i32) ${stmtsBody})`];
+    case "return":
       var valStmts = codeGenExpr(stmt.value);
-      return valStmts.concat([`(local.set $${stmt.name})`]);
+      valStmts.push("return");
+      return valStmts;
+    case "assign":
+      var valStmts = codeGenExpr(stmt.value);
+      valStmts.push(`(local.set $${stmt.name})`);
+      return valStmts;
     case "expr":
-      var exprStmts = codeGenExpr(stmt.expr);
-      return exprStmts.concat([`(local.set $$last)`]);
+      const result = codeGenExpr(stmt.expr);
+      result.push("(local.set $scratch)");
+      return result;
   }
 }
+export function compile(source : string) : string {
+  const ast = parseProgram(source);
+  const vars : Array<string> = [];
+  ast.forEach((stmt) => {
+    if(stmt.tag === "assign") { vars.push(stmt.name); }
+  });
+  const funs : Array<string> = [];
+  ast.forEach((stmt, i) => {
+    if(stmt.tag === "define") { funs.push(codeGenStmt(stmt).join("\n")); }
+  });
+  const allFuns = funs.join("\n\n");
+  const stmts = ast.filter((stmt) => stmt.tag !== "define");
+  
+  const varDecls : Array<string> = [];
+  varDecls.push(`(local $scratch i32)`);
+  vars.forEach(v => { varDecls.push(`(local $${v} i32)`); });
 
-function codeGenExpr(expr : Expr) : Array<string> {
-  switch(expr.tag) {
-    case "builtin1":
-      const argStmts = codeGenExpr(expr.arg);
-      return argStmts.concat([`(call $${expr.name})`]);
-    case "num":
-      return ["(i32.const " + expr.value + ")"];
-    case "id":
-      return [`(local.get $${expr.name})`];
+  const allStmts = stmts.map(codeGenStmt).flat();
+  const ourCode = varDecls.concat(allStmts).join("\n");
+
+  const lastStmt = ast[ast.length - 1];
+  const isExpr = lastStmt.tag === "expr";
+  var retType = "";
+  var retVal = "";
+  if(isExpr) {
+    retType = "(result i32)";
+    retVal = "(local.get $scratch)"
   }
+
+  return `
+    (module
+      ${allFuns}
+      (func (export "_start") ${retType}
+        ${ourCode}
+        ${retVal}
+      )
+    ) 
+  `;
 }

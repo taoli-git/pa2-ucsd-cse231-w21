@@ -1,41 +1,22 @@
-import {run} from './runner';
+import {compile, run} from './compiler';
 
-
-function webStart() {
-  document.addEventListener("DOMContentLoaded", function() {
-    var importObject = {
-      imports: {
-        print: (arg : any) => {
-          console.log("Logging from WASM: ", arg);
-          const elt = document.createElement("pre");
-          document.getElementById("output").appendChild(elt);
-          elt.innerText = arg;
-          return arg;
-        },
-      },
-    };
-
-    function renderResult(result : any) : void {
-      if(result === undefined) { console.log("skip"); return; }
-      const elt = document.createElement("pre");
-      document.getElementById("output").appendChild(elt);
-      elt.innerText = String(result);
+document.addEventListener("DOMContentLoaded", async () => {
+  const runButton = document.getElementById("run");
+  const userCode = document.getElementById("user-code") as HTMLTextAreaElement;
+  runButton.addEventListener("click", async () => {
+    const program = userCode.value;
+    const wat = compile(program);
+    const code = document.getElementById("generated-code");
+    code.textContent = wat;
+    const output = document.getElementById("output");
+    try {
+      const result = await run(wat);
+      output.textContent = String(result);
+      output.setAttribute("style", "color: black");
     }
-
-    function renderError(result : any) : void {
-      const elt = document.createElement("pre");
-      document.getElementById("output").appendChild(elt);
-      elt.setAttribute("style", "color: red");
-      elt.innerText = String(result);
+    catch(e) {
+      output.textContent = String(e);
+      output.setAttribute("style", "color: red");
     }
-
-    document.getElementById("run").addEventListener("click", function(e) {
-      const source = document.getElementById("user-code") as HTMLTextAreaElement;
-      const output = document.getElementById("output").innerHTML = "";
-      run(source.value, {importObject}).then((r) => { renderResult(r); console.log ("run finished") })
-          .catch((e) => { renderError(e); console.log("run failed", e) });;
-    });
   });
-}
-
-webStart();
+});
