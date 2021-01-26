@@ -1,6 +1,6 @@
 import { TreeCursor } from 'lezer';
 import {parser} from 'lezer-python';
-import {Parameter, Stmt, Expr} from './ast';
+import {Parameter, Stmt, Expr, Type} from './ast';
 
 export function parseProgram(source : string) : Array<Stmt> {
   const t = parser.parse(source).cursor();
@@ -54,12 +54,14 @@ export function traverseStmt(s : string, t : TreeCursor) : Stmt {
       t.nextSibling(); // Focus on Body
       t.firstChild();  // Focus on :
       t.nextSibling(); // Focus on single statement (for now)
+      var ret:void = null;
+      var decls:any = [];
       var body = [traverseStmt(s, t)];
       t.parent();      // Pop to Body
       t.parent();      // Pop to FunctionDefinition
       return {
         tag: "define",
-        name, parameters, body
+        name, parameters, ret, decls, body
       }
       
   }
@@ -69,14 +71,24 @@ export function traverseParameters(s : string, t : TreeCursor) : Array<Parameter
   t.firstChild();  // Focuses on open paren
   t.nextSibling(); // Focuses on a VariableName
   let name = s.substring(t.from, t.to);
+  t.nextSibling(); // :
+  t.nextSibling();
+  let tp = s.substring(t.from, t.to);
   t.parent();      // Pop to ParamList
-  return [{ name }]
+  switch(tp){
+    case "int":
+      return [{ name: name,  type: Type.Int}]
+    case "bool":
+      return [{ name: name,  type: Type.Bool}]
+    default:
+      throw new Error("Invalid type annotation; there is no class named: " + tp)
+  }
 }
 
 export function traverseExpr(s : string, t : TreeCursor) : Expr {
   switch(t.type.name) {
     case "Number":
-      return { tag: "number", value: Number(s.substring(t.from, t.to)) };
+      return { tag: "num", value: Number(s.substring(t.from, t.to)) };
     case "VariableName":
       return { tag: "id", name: s.substring(t.from, t.to) };
     case "CallExpression":
