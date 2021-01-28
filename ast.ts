@@ -1,5 +1,3 @@
-import { type } from "os"
-
 export const NONE: number = 0;
 export const FALSE: number = 2;
 export const TRUE: number = 4;
@@ -26,7 +24,7 @@ export type Expr =
   | { tag: "bool", value: boolean }
   | { tag: "num", value: number }
   | { tag: "id", name: string }
-  | { tag: "uop", op: Op, arg: Expr}
+  | { tag: "uop", op: Op, arg: Expr }
   | { tag: "op", op: Op, left: Expr, right: Expr }
   | { tag: "builtin1", name: string, arg: Expr }
   | { tag: "builtin2", name: string, left: Expr, right: Expr }
@@ -35,10 +33,3 @@ export type Expr =
 export enum Type { None, Bool, Int } ;
 
 export enum Op { Plus, Minus, Times, Div, Mod, Eq, Neq, Leq, Geq, Lt, Gt, Is, Neg, Not } ;
-
-
-
-    
-
-
-

@@ -32,6 +32,8 @@ export function traverseStmt(s : string, t : TreeCursor) : Stmt {
       if(s.substring(t.from, t.to).length > 0) value = traverseExpr(s, t); // non empty return statement
       t.parent();
       return { tag: "return", value };
+    case "PassStatement":
+      return { tag: "pass" };
     case "AssignStatement":
       t.firstChild(); // focused on name (the first child)
       var name = s.substring(t.from, t.to);
@@ -79,6 +81,70 @@ export function traverseStmt(s : string, t : TreeCursor) : Stmt {
       var expr = traverseExpr(s, t);
       t.parent();
       return { tag: "expr", expr: expr };
+    case "IfStatement":
+      //tempararily ignore elif
+      t.firstChild(); // Focuse on if
+      t.nextSibling(); // cond
+
+      var cond = traverseExpr(s,t);
+      t.nextSibling();
+
+      t.firstChild(); // Focus on :
+      t.nextSibling(); // Focus on thn body
+
+      var body:Stmt[] = []
+      do {
+        console.log(s.substring(t.from, t.to));
+        var stmt  = traverseStmt(s, t);
+        body.push(stmt);
+      } while(t.nextSibling()) // t.nextSibling() returns false when it reaches
+
+      t.parent(); // back to IfStatement
+      t.nextSibling();
+
+      t.firstChild(); // Focus on else part
+      if(s.substring(t.from, t.to) == ":") {
+        t.parent();// Pop to the IfStatement
+        t.parent();// Pop of IfStatement
+        return { tag: "if", cond: cond, thn: body, els: [ { tag: "pass" } ] };
+      }
+
+      t.nextSibling(); // Focus on : els
+
+      t.firstChild(); // Focus on :
+      t.nextSibling(); //Focus on first statement in els
+      var els:Stmt[] = []
+      do {
+        var stmt  = traverseStmt(s, t);
+        els.push(stmt);
+      } while(t.nextSibling()); // t.nextSibling() returns false when it reaches
+
+      t.parent(); // Pop to : els
+      t.parent(); // Pop to Body
+
+      t.parent(); // Pop to IfStatement
+      return { tag: "if", cond: cond, thn: body, els: els };
+    case "WhileStatement":
+      t.firstChild(); // Focuse on while
+      t.nextSibling(); // cond
+
+      var cond = traverseExpr(s,t);
+      t.nextSibling();
+
+      t.firstChild(); // Focus on :
+      t.nextSibling(); // Focus on thn body
+
+      var body:Stmt[] = []
+      do {
+        console.log(s.substring(t.from, t.to));
+        var stmt  = traverseStmt(s, t);
+        body.push(stmt);
+      } while(t.nextSibling()) // t.nextSibling() returns false when it reaches
+
+      t.parent(); // Pop of body
+      t.parent(); // Pop of WhileStatement
+
+      return { tag: "while", cond: cond, body: body };
     case "FunctionDefinition":
       t.firstChild();  // Focus on def
       t.nextSibling(); // Focus on name of function
@@ -112,7 +178,7 @@ export function traverseStmt(s : string, t : TreeCursor) : Stmt {
       
       t.nextSibling(); // Focus on single statement (for now)
       var decls:Decl[] = [];
-      var body:Stmt[] = []
+      var body:Stmt[] = [];
       var finishDecls = false; // Make sure decls are at the beginning.
       do {
         var stmt  = traverseStmt(s, t);
@@ -132,7 +198,6 @@ export function traverseStmt(s : string, t : TreeCursor) : Stmt {
         tag: "define",
         name, parameters, ret, decls, body
       }
-      
   }
 }
 
