@@ -67,19 +67,19 @@ Sorry I have no time to implement REPL.
 
 ## A program that has a type error because of a mismatch of booleans and integers on one of the arithmetic operations
 
-![avatar][pic1]
+![alt][pic1]
 
 ## A program that has a type error in a conditional position
 
-![avatar][pic2]
+![alt][pic2]
 
 ## A program that calls a function from within a loop
 
-![avatar][pic3]
+![alt][pic3]
 
 ## Printing an integer and a boolean
 
-![avatar][pic4]
+![alt][pic4]
 
 ## A recursive function.
 ```python
